@@ -123,6 +123,10 @@ AddOption('--with-asan', action='store_true',
           help='Build with Address Sanitizer if available')
 AddOption('--with-systemc-tests', action='store_true',
           help='Build systemc tests')
+AddOption('--with-permisive-kernel-panics',
+          dest='with_permisive_kernel_panics',
+          action='store_true',
+          help='Build treating kernel panics as warnings')
 AddOption('--install-hooks', action='store_true',
           help='Install revision control hooks non-interactively')
 AddOption('--gprof', action='store_true',
@@ -550,6 +554,10 @@ if GetOption('gprof'):
 if GetOption('pprof'):
     main.Append(CCFLAGS=['-g'],
             LINKFLAGS=['-Wl,--no-as-needed', '-lprofiler', '-Wl,--as-needed'])
+
+if GetOption('with_permisive_kernel_panics'):
+    main.Append(CCFLAGS='-DPERMISIVE_KERNEL_PANICS')
+    main.Append(LINKFLAGS='-DPERMISIVE_KERNEL_PANICS')
 
 main['HAVE_PKG_CONFIG'] = main.Detect('pkg-config')
 

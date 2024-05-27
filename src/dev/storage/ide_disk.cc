@@ -257,8 +257,13 @@ IdeDisk::readControl(const Addr offset, int size, uint8_t *data)
 {
     assert(size == sizeof(uint8_t));
     *data = status;
-    if (offset != ALTSTAT_OFFSET)
-        panic("Invalid IDE control register offset: %#x\n", offset);
+    if (offset != ALTSTAT_OFFSET) {
+#ifdef PERMISIVE_KERNEL_PANICS
+      DPRINTF(IdeDisk,"Invalid IDE control register offset: %#x\n", offset);
+#else
+      panic("Invalid IDE control register offset: %#x\n", offset);
+#endif
+    }
     DPRINTF(IdeDisk, "Read to disk at offset: %#x data %#x\n", offset, *data);
 }
 

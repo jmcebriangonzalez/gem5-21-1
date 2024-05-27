@@ -122,11 +122,26 @@ PS2Mouse::recv(const std::vector<uint8_t> &data)
       case mouse::ReadData:
         panic("Reading mouse data unimplemented.\n");
       case mouse::ResetWrapMode:
+#ifdef PERMISIVE_KERNEL_PANICS
+        DPRINTF(PS2, "Resetting mouse wrap mode unimplemented.\n");
+        return true;
+#else
         panic("Resetting mouse wrap mode unimplemented.\n");
+#endif
       case mouse::WrapMode:
+#ifdef PERMISIVE_KERNEL_PANICS
+        DPRINTF(PS2, "Resetting mouse wrap mode unimplemented.\n");
+        return true;
+#else
         panic("Setting mouse wrap mode unimplemented.\n");
+#endif
       case mouse::RemoteMode:
+#ifdef PERMISIVE_KERNEL_PANICS
+        DPRINTF(PS2, "Setting mouse remote mode unimplemented.\n");
+        return true;
+#else
         panic("Setting mouse remote mode unimplemented.\n");
+#endif
       case mouse::SampleRate:
         if (data.size() == 1) {
             DPRINTF(PS2, "Setting mouse sample rate.\n");
