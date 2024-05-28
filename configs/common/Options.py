@@ -193,6 +193,8 @@ def addCommonOptions(parser):
     parser.add_argument("--cpu-type", default="AtomicSimpleCPU",
                         choices=ObjectList.cpu_list.get_names(),
                         help="type of cpu to run with")
+    parser.add_argument("--mycpuconfig", type=str, default=None,
+                        help = "Specify filename of python CPU configuration file")
     parser.add_argument("--list-bp-types",
                         action=ListBp, nargs=0,
                         help="List available branch predictor types")

@@ -38,6 +38,7 @@ import m5.objects
 import m5.internal.params
 import inspect
 import sys
+import traceback
 from textwrap import TextWrapper
 
 class ObjectList(object):
@@ -55,6 +56,37 @@ class ObjectList(object):
         except (TypeError, AttributeError):
             return False
 
+    def getCPU(self, name, options):
+        """Get a sub class from a user provided class name or alias."""
+
+        real_name = self._aliases.get(name, name)
+
+        # Add loading of user-defined CPU configuration file
+        # Use the options.cpu_type to insert the desired O3 or Minor CPU definition
+        if real_name == "mycpuconfig":
+            if not options.mycpuconfig:
+                print("You must specify a CPU configuration file using '--mycpuconfig=' when using ", name)
+                sys.exit(1)
+
+        if options.mycpuconfig:
+            try:
+                exec('from ' + options.mycpuconfig + ' import ' + options.mycpuconfig + '_CPU')
+                self._sub_classes[real_name] = eval(options.mycpuconfig + '_CPU')
+            except:
+                print(options.mycpuconfig + " is not a valid CPU model. Expecting file " + options.mycpuconfig + ".py and class definition " + options.mycpuconfig + "_CPU")
+                traceback.print_exc()
+                sys.exit(1)
+
+        try:
+            sub_cls = self._sub_classes[real_name]
+            return sub_cls
+        except KeyError:
+            print("{} is not a valid sub-class of {}.".format(name, \
+                self.base_cls))
+            traceback.print_exc()
+            raise
+
+
     def get(self, name):
         """Get a sub class from a user provided class name or alias."""
 
@@ -65,6 +97,7 @@ class ObjectList(object):
         except KeyError:
             print("{} is not a valid sub-class of {}.".format(name, \
                 self.base_cls))
+            traceback.print_exc()
             raise
 
     def print(self):
@@ -96,6 +129,9 @@ class ObjectList(object):
         """Add all sub-classes of the base class in the object hierarchy."""
         for name, cls in inspect.getmembers(m5.objects, self._is_obj_class):
             self._sub_classes[name] = cls
+        # We can specify as cpu_type this string and then in options.mycpuconfig
+        # specify the filename with the python configuration.
+        self._sub_classes["mycpuconfig"] = None
 
     def _add_aliases(self, aliases):
         """Add all aliases of the sub-classes."""

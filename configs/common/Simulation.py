@@ -51,9 +51,9 @@ from m5.util import *
 
 addToPath('../common')
 
-def getCPUClass(cpu_type):
+def getCPUClass(cpu_type, options):
     """Returns the required cpu class and the mode of operation."""
-    cls = ObjectList.cpu_list.get(cpu_type)
+    cls = ObjectList.cpu_list.getCPU(cpu_type, options)
     return cls, cls.memory_mode()
 
 def setCPUClass(options):
@@ -66,7 +66,7 @@ def setCPUClass(options):
        depending on the options provided.
     """
 
-    TmpClass, test_mem_mode = getCPUClass(options.cpu_type)
+    TmpClass, test_mem_mode = getCPUClass(options.cpu_type, options)
     CPUClass = None
     if TmpClass.require_caches() and \
             not options.caches and not options.ruby:
@@ -75,7 +75,7 @@ def setCPUClass(options):
     if options.checkpoint_restore != None:
         if options.restore_with_cpu != options.cpu_type:
             CPUClass = TmpClass
-            TmpClass, test_mem_mode = getCPUClass(options.restore_with_cpu)
+            TmpClass, test_mem_mode = getCPUClass(options.restore_with_cpu, options)
     elif options.fast_forward:
         CPUClass = TmpClass
         TmpClass = AtomicSimpleCPU
@@ -498,7 +498,7 @@ def run(options, root, testsys, cpu_class):
         switch_cpu_list = [(testsys.cpu[i], switch_cpus[i]) for i in range(np)]
 
     if options.repeat_switch:
-        switch_class = getCPUClass(options.cpu_type)[0]
+        switch_class = getCPUClass(options.cpu_type, options)[0]
         if switch_class.require_caches() and \
                 not options.caches:
             print("%s: Must be used with caches" % str(switch_class))
