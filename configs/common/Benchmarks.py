@@ -30,12 +30,13 @@ from m5.defines import buildEnv
 
 class SysConfig:
     def __init__(self, script=None, mem=None, disks=None, rootdev=None,
-                 os_type='linux'):
+                 os_type='linux', secondary_disk=None):
         self.scriptname = script
         self.disknames = disks
         self.memsize = mem
         self.root = rootdev
         self.ostype = os_type
+        self.secondarydiskname = secondary_disk
 
     def script(self):
         if self.scriptname:
@@ -54,6 +55,14 @@ class SysConfig:
             return [disk(diskname) for diskname in self.disknames]
         else:
             return []
+
+    def secondarydisk(self):
+        if self.secondarydiskname:
+            return disk(self.secondarydiskname)
+        else:
+            print("Default secondary disk image missing %s ISA" % \
+                buildEnv['TARGET_ISA'])
+            exit(1)
 
     def rootdev(self):
         if self.root:

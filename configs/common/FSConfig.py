@@ -207,6 +207,13 @@ def makeArmSystem(mem_mode, machine_type, num_cpus=1, mdesc=None,
     self.realview.attachPciDevices()
 
     disks = makeCowDisks(mdesc.disks())
+
+    if mdesc.secondarydiskname:
+        self.cf1 = CowIdeDisk(driveID='device0')
+        self.cf1.childImage(mdesc.secondarydisk())
+        disks.append(self.cf1)
+        print("Appending secondary Image")
+
     # Old platforms have a built-in IDE or CF controller. Default to
     # the IDE controller if both exist. New platforms expect the
     # storage controller to be added from the config script.
@@ -483,6 +490,12 @@ def makeX86System(mem_mode, numCPUs=1, mdesc=None, workload=None, Ruby=False):
 
     # Disks
     disks = makeCowDisks(mdesc.disks())
+
+    if mdesc.secondarydiskname:
+        disk2 = CowIdeDisk(driveID='device0')
+        disk2.childImage(mdesc.secondarydisk())
+        disks.append(disk2)
+
     self.pc.south_bridge.ide.disks = disks
 
     # Add in a Bios information structure.

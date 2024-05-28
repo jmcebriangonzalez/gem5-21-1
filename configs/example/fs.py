@@ -127,6 +127,9 @@ def build_test_system(np):
         test_sys.workload.bootloader = args.kernel
     elif args.kernel is not None:
         test_sys.workload.object_file = binary(args.kernel)
+        boot_options = ['earlyprintk=ttyS0', 'console=ttyS0', 'lpj=7999923',
+                        'root=/dev/hda1']
+        test_sys.workload.command_line = ' '.join(boot_options)
 
     if args.script is not None:
         test_sys.readfile = args.script
@@ -266,6 +269,9 @@ def build_drive_system(np):
     drive_sys.cpu.connectBus(drive_sys.membus)
     if args.kernel is not None:
         drive_sys.workload.object_file = binary(args.kernel)
+        boot_options = ['earlyprintk=ttyS0', 'console=ttyS0', 'lpj=7999923',
+                        'root=/dev/hda1']
+        drive_sys.workload.command_line = ' '.join(boot_options)
 
     if ObjectList.is_kvm_cpu(DriveCPUClass):
         drive_sys.kvm_vm = KvmVM()
@@ -313,12 +319,15 @@ if args.benchmark:
 else:
     if args.dual:
         bm = [SysConfig(disks=args.disk_image, rootdev=args.root_device,
-                        mem=args.mem_size, os_type=args.os_type),
+                        mem=args.mem_size, os_type=args.os_type,
+                        secondary_disk=args.secondary_disk_image),
               SysConfig(disks=args.disk_image, rootdev=args.root_device,
-                        mem=args.mem_size, os_type=args.os_type)]
+                        mem=args.mem_size, os_type=args.os_type,
+                        secondary_disk=args.secondary_disk_image)]
     else:
         bm = [SysConfig(disks=args.disk_image, rootdev=args.root_device,
-                        mem=args.mem_size, os_type=args.os_type)]
+                        mem=args.mem_size, os_type=args.os_type,
+                        secondary_disk=args.secondary_disk_image)]
 
 np = args.num_cpus
 

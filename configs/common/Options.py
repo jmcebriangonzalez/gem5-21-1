@@ -519,6 +519,8 @@ def addFSOptions(parser):
                         default=[], help="Path to the disk images to use.")
     parser.add_argument("--root-device", action="store", type=str,
                         default=None, help="OS device name for root partition")
+    parser.add_argument("--secondary-disk-image", action="store", type=str,
+                      default=None, help="Path to the disk image to use.")
 
     # Command line options
     parser.add_argument("--command-line", action="store", type=str,
