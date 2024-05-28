@@ -152,6 +152,7 @@ do { [[maybe_unused]] int i[] = { 0, ((void)(__VA_ARGS__), 0)... }; } while (0)
 #define M5_WEAK GEM5_WEAK
 #define M5_ALIGNED(x) GEM5_ALIGNED(x)
 #define M5_UNREACHABLE GEM5_UNREACHABLE
+#define M5_X86_UNREACHABLE return new Unknown(machInst)
 #define M5_LIKELY(x) GEM5_LIKELY(x)
 #define M5_UNLIKELY(x) GEM5_UNLIKELY(x)
 #define M5_FOR_EACH_IN_PACK(...) GEM5_FOR_EACH_IN_PACK(__VA_ARGS__)
