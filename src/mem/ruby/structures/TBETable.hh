@@ -70,6 +70,8 @@ class TBETable
         return (m_number_of_TBEs - m_map.size()) >= n;
     }
 
+    int getOccupancy() { return (int)((m_map.size() * 100)/m_number_of_TBEs); }
+
     ENTRY *getNullEntry();
     ENTRY *lookup(Addr address);
 

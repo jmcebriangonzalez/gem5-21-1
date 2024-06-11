@@ -56,7 +56,18 @@
 #include "params/RubyPrefetcher.hh"
 #include "sim/sim_object.hh"
 
-#define MAX_PF_INFLIGHT 8
+// Berti (some may not be needed)
+#include <algorithm>
+#include <iostream>
+#include <stdlib.h>
+#include <cassert>
+#include <vector>
+#include <time.h>
+#include <cstdio>
+#include <tuple>
+#include <queue>
+#include <cmath>
+#include <map>
 
 namespace gem5
 {
@@ -64,38 +75,195 @@ namespace gem5
 namespace ruby
 {
 
-class PrefetchEntry
-{
+
+// Hash Function
+//#define HASH_FN
+//# define HASH_ORIGINAL
+//# define THOMAS_WANG_HASH_1
+//# define THOMAS_WANG_HASH_2
+//# define THOMAS_WANG_HASH_3
+//# define THOMAS_WANG_HASH_4
+//# define THOMAS_WANG_HASH_5
+//# define THOMAS_WANG_HASH_6
+//# define THOMAS_WANG_HASH_7
+//# define THOMAS_WANG_NEW_HASH
+//# define THOMAS_WANG_HASH_HALF_AVALANCHE
+//# define THOMAS_WANG_HASH_FULL_AVALANCHE
+//# define THOMAS_WANG_HASH_INT_1
+//# define THOMAS_WANG_HASH_INT_2
+#define ENTANGLING_HASH
+//# define FOLD_HASH
+
+#define NO_CROSS_PAGE
+
+  /*****************************************************************************
+   *                      General Structs                                      *
+   *****************************************************************************/
+
+  typedef struct Delta {
+    uint64_t conf;
+    int64_t  delta;
+    uint8_t  rpl;
+    Delta(): conf(0), delta(0), rpl(0) {};
+  } delta_t;
+
+  /*****************************************************************************
+   *                      Berti structures                                     *
+   *****************************************************************************/
+  class LatencyTable
+  {
+    /* Latency table simulate the modified PQ and MSHR */
+    private:
+      struct latency_table {
+        uint64_t addr = 0; // Addr
+        uint64_t tag  = 0; // IP-Tag
+        uint64_t time = 0; // Event cycle
+        bool     pf   = false;   // Is the entry accessed by a demand miss
+      };
+      int size;
+
+      latency_table *latencyt;
+      RubyPrefetcher& rp_instance;
+
     public:
-        /// constructor
-        PrefetchEntry()
-        {
-            // default: 1 cache-line stride
-            m_stride   = (1 << RubySystem::getBlockSizeBits());
-            m_use_time = Cycles(0);
-            m_is_valid = false;
-        }
+      LatencyTable(const int size, RubyPrefetcher& rp) : size(size),rp_instance(rp)
+      {
+        latencyt = new latency_table[size];
+      }
+      ~LatencyTable() { delete latencyt;}
 
-        //! The base address for the stream prefetch
-        Addr m_address;
+      uint8_t  add(uint64_t addr, uint64_t tag, bool pf, uint64_t cycle);
+      uint64_t get(uint64_t addr);
+      uint64_t del(uint64_t addr);
+      uint64_t get_tag(uint64_t addr);
 
-        //! stride distance to get next address from
-        int m_stride;
+  };
 
-        //! the last time that any prefetched request was used
-        Cycles m_use_time;
+  class ShadowCache
+  {
+    /* Shadow cache simulate the modified L1D Cache */
+    private:
+      struct shadow_cache {
+        uint64_t addr = 0; // Addr
+        uint64_t lat  = 0;  // Latency
+        bool     pf   = false;   // Is a prefetch
+      }; // This struct is the vberti table
 
-        //! valid bit for each stream
-        bool m_is_valid;
+      int sets;
+      int ways;
+      shadow_cache **scache;
+      RubyPrefetcher& rp_instance;
 
-        //! L1D prefetches loads and stores
-        RubyRequestType m_type;
+    public:
+      ShadowCache(const int sets, const int ways, RubyPrefetcher& rp) : rp_instance(rp)
+      {
+        scache = new shadow_cache*[sets];
+        for (int i = 0; i < sets; i++) scache[i] = new shadow_cache[ways];
 
-        //! Bitset for tracking prefetches for which addresses have been
-        //! issued, which ones have completed.
-        std::bitset<MAX_PF_INFLIGHT> requestIssued;
-        std::bitset<MAX_PF_INFLIGHT> requestCompleted;
-};
+        this->sets = sets;
+        this->ways = ways;
+      }
+
+      ~ShadowCache()
+      {
+        for (int i = 0; i < sets; i++) delete scache[i];
+        delete scache;
+      }
+
+      bool add(uint32_t set, uint32_t way, uint64_t addr, bool pf, uint64_t lat);
+      bool get(uint64_t addr);
+      void set_pf(uint64_t addr, bool pf);
+      bool is_pf(uint64_t addr);
+      uint64_t get_latency(uint64_t addr);
+  };
+
+  class HistoryTable
+  {
+    /* History Table */
+    private:
+      struct history_table {
+        uint64_t tag  = 0; // IP Tag
+        uint64_t addr = 0; // IP @ accessed
+        uint64_t time = 0; // Time where the line is accessed
+      }; // This struct is the history table
+
+      uint64_t sets;
+      uint64_t ways;
+
+      history_table **historyt;
+      history_table **history_pointers;
+      RubyPrefetcher& rp_instance;
+
+      uint16_t get_aux(uint32_t latency, uint64_t tag, uint64_t act_addr,
+          std::vector<uint64_t>& tags, std::vector<uint64_t>& addr, uint64_t cycle);
+    public:
+      HistoryTable(uint64_t sets_in, uint64_t ways_in, RubyPrefetcher& rp) : rp_instance(rp)
+      {
+	sets = sets_in;
+	ways = ways_in;
+        history_pointers = new history_table*[sets];
+        historyt = new history_table*[sets];
+
+        for (int i = 0; i < sets; i++) historyt[i] = new history_table[ways];
+        for (int i = 0; i < sets; i++) history_pointers[i] = historyt[i];
+      }
+
+      ~HistoryTable()
+      {
+        for (int i = 0; i < sets; i++) delete historyt[i];
+        delete historyt;
+
+        delete history_pointers;
+      }
+
+      int get_ways();
+      void add(uint64_t tag, uint64_t addr, uint64_t cycle);
+      uint16_t get(uint32_t latency, uint64_t tag, uint64_t act_addr,
+          std::vector<uint64_t>& tags, std::vector<uint64_t>& addr, uint64_t cycle);
+  };
+
+  class Berti
+  {
+    /* Berti Table */
+    private:
+      struct berti {
+        std::vector<delta_t> deltas; //         std::array<delta_t, BERTI_TABLE_DELTA_SIZE> deltas;
+        uint64_t conf = 0;
+        uint64_t total_used = 0;
+	berti(size_t delta_size) : deltas(delta_size) {}
+      };
+
+      std::map<uint64_t, berti*> bertit;
+      std::queue<uint64_t> bertit_queue;
+
+      uint64_t size = 0;
+
+      RubyPrefetcher& rp_instance;
+      static uint64_t berti_r;
+      static uint64_t berti_l1;
+      static uint64_t berti_l2;
+      static uint64_t berti_l2r;
+
+      bool static compare_greater_delta(delta_t a, delta_t b);
+      bool static compare_rpl(delta_t a, delta_t b);
+
+      void increase_conf_tag(uint64_t tag);
+      void conf_tag(uint64_t tag);
+      void add(uint64_t tag, int64_t delta);
+
+
+    public:
+      Berti(uint64_t p_size, RubyPrefetcher& rp);
+      ~Berti() {
+	for (auto& pair : bertit) {
+	  delete pair.second;
+	}
+      }
+      void find_and_update(uint64_t latency, uint64_t tag, uint64_t cycle,
+			   uint64_t line_addr, HistoryTable *historyt);
+      uint8_t get(uint64_t tag, std::vector<delta_t> &res);
+      uint64_t ip_hash(uint64_t ip);
+  };
 
 class RubyPrefetcher : public SimObject
 {
@@ -104,23 +272,22 @@ class RubyPrefetcher : public SimObject
         RubyPrefetcher(const Params &p);
         ~RubyPrefetcher() = default;
 
-        void issueNextPrefetch(Addr address, PrefetchEntry *stream);
         /**
          * Implement the prefetch hit(miss) callback interface.
          * These functions are called by the cache when it hits(misses)
          * on a line with the line's prefetch bit set. If this address
          * hits in m_array we will continue prefetching the stream.
          */
-        void observePfHit(Addr address);
-        void observePfMiss(Addr address);
+         void observePfHit(Addr address, const RubyRequestType& type, Addr pc);
+         void observePfMiss(Addr address, const RubyRequestType& type, Addr pc);
 
         /**
          * Observe a memory miss from the cache.
          *
          * @param address   The physical address that missed out of the cache.
          */
-        void observeMiss(Addr address, const RubyRequestType& type);
-
+        void observeMiss(Addr address, const RubyRequestType& type, Addr pc);
+        void observeHit(Addr address, const RubyRequestType& type, Addr pc);
         /**
          * Print out some statistics
          */
@@ -128,136 +295,126 @@ class RubyPrefetcher : public SimObject
         void setController(AbstractController *_ctrl)
         { m_controller = _ctrl; }
 
+        void insertReplacement(Addr evicted_addr) {
+	  assert(last_replaced_addr == 0);
+	  last_replaced_addr = makeLineAddress(evicted_addr);
+	}
+        Addr getLastReplacedAddr() { return last_replaced_addr; }
+
+        void prefetcher_cache_operate(Addr addr, Addr ip, bool cache_hit,
+				      bool useful_prefetch, const RubyRequestType& type);
+        void prefetcher_cache_fill(Addr addr, bool prefetch, uint32_t set, uint32_t way);
+
+        uint64_t getBertiTableSize() const { return berti_table_size; }
+        uint64_t getBertiTableDeltaSize() const { return berti_table_delta_size; }
+        uint64_t getHistoryTableSets() const { return history_table_sets; }
+        uint64_t getHistoryTableWays() const { return history_table_ways; }
+        uint64_t getSizeIpMask() const { return size_ip_mask; }
+        uint64_t getIpMask() const { return ip_mask; }
+        uint64_t getTimeMask() const { return time_mask; }
+        uint64_t getLatMask() const { return lat_mask; }
+        uint64_t getAddrMask() const { return addr_mask; }
+        uint64_t getDeltaMask() const { return delta_mask; }
+        uint64_t getTableSetMask() const { return table_set_mask; }
+        uint64_t getConfidenceMax() const { return confidence_max; }
+        uint64_t getConfidenceInc() const { return confidence_inc; }
+        uint64_t getConfidenceInit() const { return confidence_init; }
+        uint64_t getConfidenceL1() const { return confidence_l1; }
+        uint64_t getConfidenceL2() const { return confidence_l2; }
+        uint64_t getConfidenceL2r() const { return confidence_l2r; }
+        uint64_t getConfidenceMiddleL1() const { return confidence_middle_l1; }
+        uint64_t getConfidenceMiddleL2() const { return confidence_middle_l2; }
+        uint64_t getLaunchMiddleConf() const { return launch_middle_conf; }
+        uint64_t getMaxHistoryIp() const { return max_history_ip; }
+        uint64_t getMshrLimit() const { return mshr_limit; }
+        uint64_t getBertiR() const { return berti_r; }
+        uint64_t getBertiL1() const { return berti_l1; }
+        uint64_t getBertiL2() const { return berti_l2; }
+        uint64_t getBertiL2r() const { return berti_l2r; }
+        uint64_t getPageShift() const { return page_shift; }
+        uint64_t getLatencyTableSize() const { return latency_table_size; }
+        uint64_t getL0Sets() const { return l0_sets; }
+        uint64_t getL0Ways() const { return l0_ways; }
+
+        void setMSHRLoad(int current_mshr_load) { mshr_load = current_mshr_load; }
+
     private:
-        struct UnitFilterEntry
-        {
-            /** Address to which this filter entry refers. */
-            Addr addr;
-            /** Counter of the number of times this entry has been hit. */
-            uint32_t hits;
-
-            UnitFilterEntry(Addr _addr = 0)
-              : addr(_addr), hits(0)
-            {
-            }
-        };
-
-        struct NonUnitFilterEntry : public UnitFilterEntry
-        {
-            /** Stride (in # of cache lines). */
-            int stride;
-
-            NonUnitFilterEntry(Addr _addr = 0)
-              : UnitFilterEntry(_addr), stride(0)
-            {
-            }
-
-            void
-            clear()
-            {
-                addr = 0;
-                stride = 0;
-                hits = 0;
-            }
-        };
-
-        /**
-         * Returns an unused stream buffer (or if all are used, returns the
-         * least recently used (accessed) stream buffer).
-         * @return  The index of the least recently used stream buffer.
-         */
-        uint32_t getLRUindex(void);
-
-        //! allocate a new stream buffer at a specific index
-        void initializeStream(Addr address, int stride,
-            uint32_t index, const RubyRequestType& type);
-
-        //! get pointer to the matching stream entry, returns NULL if not found
-        //! index holds the multiple of the stride this address is.
-        PrefetchEntry* getPrefetchEntry(Addr address,
-            uint32_t &index);
-
-        /**
-         * Access a unit stride filter to determine if there is a hit, and
-         * update it otherwise.
-         *
-         * @param filter Unit filter being accessed.
-         * @param line_addr Address being accessed, block aligned.
-         * @param stride The stride value.
-         * @param type Type of the request that generated the access.
-         * @return True if a corresponding entry was found.
-         */
-        bool accessUnitFilter(CircularQueue<UnitFilterEntry>* const filter,
-            Addr line_addr, int stride, const RubyRequestType& type);
-
-        /**
-         * Access a non-unit stride filter to determine if there is a hit, and
-         * update it otherwise.
-         *
-         * @param line_addr Address being accessed, block aligned.
-         * @param type Type of the request that generated the access.
-         * @return True if a corresponding entry was found and its stride is
-         *         not zero.
-         */
-        bool accessNonunitFilter(Addr line_addr, const RubyRequestType& type);
 
         /// determine the page aligned address
         Addr pageAddress(Addr addr) const;
 
-        //! number of prefetch streams available
-        uint32_t m_num_streams;
-        //! an array of the active prefetch streams
-        std::vector<PrefetchEntry> m_array;
+        uint64_t berti_table_size;
+        uint64_t berti_table_delta_size;
 
-        //! number of misses I must see before allocating a stream
-        uint32_t m_train_misses;
-        //! number of initial prefetches to startup a stream
-        uint32_t m_num_startup_pfs;
+        uint64_t history_table_sets;
+        uint64_t history_table_ways;
 
-        /**
-         * A unit stride filter array: helps reduce BW requirement
-         * of prefetching.
-         */
-        CircularQueue<UnitFilterEntry> unitFilter;
+        uint64_t size_ip_mask;
+        uint64_t ip_mask;
+        uint64_t time_mask;
+        uint64_t lat_mask;
 
-        /**
-         * A negative unit stride filter array: helps reduce BW requirement
-         * of prefetching.
-         */
-        CircularQueue<UnitFilterEntry> negativeFilter;
+        uint64_t addr_mask;
+        uint64_t delta_mask;
+        uint64_t table_set_mask;
 
-        /**
-         * A non-unit stride filter array: helps reduce BW requirement of
-         * prefetching.
-         */
-        CircularQueue<NonUnitFilterEntry> nonUnitFilter;
+        uint64_t confidence_max;
+        uint64_t confidence_inc;
+        uint64_t confidence_init;
 
-        /// Used for allowing prefetches across pages.
-        bool m_prefetch_cross_pages;
+        uint64_t confidence_l1;
+        uint64_t confidence_l2;
+        uint64_t confidence_l2r;
 
-        AbstractController *m_controller;
+        uint64_t confidence_middle_l1;
+        uint64_t confidence_middle_l2;
+        uint64_t launch_middle_conf;
 
-        const unsigned pageShift;
+        uint64_t max_history_ip;
+        uint64_t mshr_limit;
+
+        uint64_t berti_r;
+        uint64_t berti_l1;
+        uint64_t berti_l2;
+        uint64_t berti_l2r;
+
+        const uint64_t page_shift;
+
+        uint64_t latency_table_size;
+        uint64_t l0_sets;
+        uint64_t l0_ways;
 
         struct RubyPrefetcherStats : public statistics::Group
         {
-            RubyPrefetcherStats(statistics::Group *parent);
+	  RubyPrefetcherStats(statistics::Group *parent);
 
-            //! Count of accesses to the prefetcher
-            statistics::Scalar numMissObserved;
-            //! Count of prefetch streams allocated
-            statistics::Scalar numAllocatedStreams;
-            //! Count of prefetch requests made
-            statistics::Scalar numPrefetchRequested;
-            //! Count of successful prefetches
-            statistics::Scalar numHits;
-            //! Count of partial successful prefetches
-            statistics::Scalar numPartialHits;
-            //! Count of pages crossed
-            statistics::Scalar numPagesCrossed;
-            //! Count of misses incurred for blocks that were prefetched
-            statistics::Scalar numMissedPrefetchedBlocks;
+	  statistics::Scalar welford_average;
+	  statistics::Scalar welford_num;
+
+	  // Get more info
+	  statistics::Scalar pf_to_l1 = 0;
+	  statistics::Scalar pf_to_l2 = 0;
+	  statistics::Scalar pf_to_l2_bc_mshr = 0;
+	  statistics::Scalar cant_track_latency = 0;
+	  statistics::Scalar cross_page = 0;
+	  statistics::Scalar no_cross_page = 0;
+	  statistics::Scalar no_found_berti = 0;
+	  statistics::Scalar found_berti = 0;
+	  statistics::Scalar average_issued = 0;
+	  statistics::Scalar average_num = 0;
+//	  statistics::Formula average = 0;
         } rubyPrefetcherStats;
+
+        AbstractController *m_controller;
+        LatencyTable *latencyt;
+        ShadowCache *scache;
+        HistoryTable *historyt;
+        Berti *berti;
+
+       int mshr_load = 0; // in %
+
+       Addr last_replaced_addr;
+
 };
 
 } // namespace ruby

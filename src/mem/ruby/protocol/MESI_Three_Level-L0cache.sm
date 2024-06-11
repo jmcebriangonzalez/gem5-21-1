@@ -168,6 +168,7 @@ machine(MachineType:L0Cache, "MESI Directory L0 Cache")
     void deallocate(Addr);
     bool isPresent(Addr);
     TBE getNullEntry();
+    int getOccupancy();
   }
 
   TBETable TBEs, template="<L0Cache_TBE>", constructor="m_number_of_TBEs";
@@ -485,6 +486,7 @@ machine(MachineType:L0Cache, "MESI Directory L0 Cache")
               // Check if the line we want to evict is not locked
               Addr addr := Icache.cacheProbe(in_msg.LineAddress);
               check_on_cache_probe(mandatoryQueue_in, addr);
+
               trigger(Event:L0_Replacement, addr,
                       getICacheEntry(addr),
                       TBEs[addr]);
@@ -532,6 +534,7 @@ machine(MachineType:L0Cache, "MESI Directory L0 Cache")
                 // Check if the line we want to evict is not locked
                 Addr addr := Dcache.cacheProbe(in_msg.LineAddress);
                 check_on_cache_probe(mandatoryQueue_in, addr);
+
                 trigger(Event:L0_Replacement, addr,
                         getDCacheEntry(addr),
                         TBEs[addr]);
@@ -722,6 +725,13 @@ machine(MachineType:L0Cache, "MESI Directory L0 Cache")
   }
 
   action(s_deallocateTBE, "s", desc="Deallocate TBE") {
+    if (enable_prefetch) {
+      assert(is_valid(cache_entry));
+      if (Dcache.isTagPresent(address)) {
+	prefetcher.prefetcher_cache_fill(address, cache_entry.isPrefetched, cache_entry.getSet(), cache_entry.getWay());
+	prefetcher.setMSHRLoad(TBEs.getOccupancy());
+       }
+    }
     TBEs.deallocate(address);
     unset_tbe();
   }
@@ -839,26 +849,41 @@ machine(MachineType:L0Cache, "MESI Directory L0 Cache")
   }
 
   action(po_observeMiss, "\po", desc="Inform the prefetcher about a cache miss") {
-    peek(mandatoryQueue_in, RubyRequest) {
-      if (enable_prefetch) {
-        prefetcher.observeMiss(in_msg.LineAddress, in_msg.Type);
+    if (enable_prefetch) {
+      peek(mandatoryQueue_in, RubyRequest) {
+	if (in_msg.Type != RubyRequestType:IFETCH) {
+	  prefetcher.observeMiss(in_msg.LineAddress, in_msg.Type, in_msg.ProgramCounter);
+	  prefetcher.setMSHRLoad(TBEs.getOccupancy());
+	}
       }
     }
   }
 
   action(ppm_observePfMiss, "\ppm",
          desc="Inform the prefetcher about a cache miss with in-flight prefetch") {
-    peek(mandatoryQueue_in, RubyRequest) {
-      prefetcher.observePfMiss(in_msg.LineAddress);
+    if (enable_prefetch) {
+      peek(mandatoryQueue_in, RubyRequest) {
+	if (in_msg.Type != RubyRequestType:IFETCH) {
+	  prefetcher.observePfMiss(in_msg.LineAddress, in_msg.Type, in_msg.ProgramCounter);
+	  prefetcher.setMSHRLoad(TBEs.getOccupancy());
+	}
+      }
     }
   }
 
   action(pph_observePfHit, "\pph",
          desc="Inform the prefetcher if a cache hit was the result of a prefetch") {
-    peek(mandatoryQueue_in, RubyRequest) {
-      if (cache_entry.isPrefetched) {
-        prefetcher.observePfHit(in_msg.LineAddress);
-        cache_entry.isPrefetched := false;
+    if (enable_prefetch) {
+      peek(mandatoryQueue_in, RubyRequest) {
+	if (in_msg.Type != RubyRequestType:IFETCH) {
+	  if (cache_entry.isPrefetched) {
+	    prefetcher.observePfHit(in_msg.LineAddress, in_msg.Type, in_msg.ProgramCounter);
+	  cache_entry.isPrefetched := false;
+	  } else {
+	    prefetcher.observeHit(in_msg.LineAddress, in_msg.Type, in_msg.ProgramCounter);
+	  }
+	}
+	prefetcher.setMSHRLoad(TBEs.getOccupancy());
       }
     }
   }

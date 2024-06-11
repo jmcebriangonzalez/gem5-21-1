@@ -176,6 +176,8 @@ structure(RubyRequest, desc="...", interface="Message", external="yes") {
 
 structure(AbstractCacheEntry, primitive="yes", external = "yes") {
   void changePermission(AccessPermission);
+  int getSet();
+  int getWay();
 }
 
 structure (DirectoryMemory, external = "yes") {
@@ -239,7 +241,11 @@ structure (TimerTable, inport="yes", external = "yes") {
 }
 
 structure (RubyPrefetcher, external = "yes") {
-    void observeMiss(Addr, RubyRequestType);
-    void observePfHit(Addr);
-    void observePfMiss(Addr);
+    void observeMiss(Addr, RubyRequestType, Addr);
+    void observeHit(Addr, RubyRequestType, Addr);
+    void observePfHit(Addr, RubyRequestType, Addr);
+    void observePfMiss(Addr, RubyRequestType, Addr);
+    void setMSHRLoad(int);
+    void prefetcher_cache_fill(Addr, bool, int, int);
+    void insertReplacement(Addr);
 }

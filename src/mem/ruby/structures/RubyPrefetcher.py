@@ -47,18 +47,51 @@ class RubyPrefetcher(SimObject):
     cxx_class = 'gem5::ruby::RubyPrefetcher'
     cxx_header = "mem/ruby/structures/RubyPrefetcher.hh"
 
-    num_streams = Param.UInt32(4,
-        "Number of prefetch streams to be allocated")
-    unit_filter  = Param.UInt32(8,
-        "Number of entries in the unit filter array")
-    nonunit_filter = Param.UInt32(8,
-        "Number of entries in the non-unit filter array")
-    train_misses = Param.UInt32(4, "")
-    num_startup_pfs = Param.UInt32(1, "")
-    cross_page = Param.Bool(False, """True if prefetched address can be on a
-            page different from the observed address""")
-    page_shift = Param.UInt32(12,
-        "Number of bits to mask to get a page number")
+    # Berti Core
+    berti_table_size = Param.UInt64(16,"")
+    berti_table_delta_size = Param.UInt64(16,"")
+
+    # History
+    history_table_sets = Param.UInt64(8,"")
+    history_table_ways = Param.UInt64(16,"")
+
+    # Masks
+    size_ip_mask = Param.UInt64(64,"")
+    ip_mask = Param.UInt64(0x3FF,"")
+    time_mask = Param.UInt64(0xFFFF,"")
+    lat_mask = Param.UInt64(0xFFF,"")
+
+    addr_mask = Param.UInt64(0xFFFFFF,"")
+    delta_mask = Param.UInt64(12,"")
+    table_set_mask = Param.UInt64(0x7,"")
+
+    # CONFIDENCE VALUES
+    confidence_max = Param.UInt64(16,"")
+    confidence_inc = Param.UInt64(1,"")
+    confidence_init = Param.UInt64(1,"")
+
+    confidence_l1 = Param.UInt64(10,"")
+    confidence_l2 = Param.UInt64(8,"")
+    confidence_l2r = Param.UInt64(6,"")
+
+    confidence_middle_l1 = Param.UInt64(14,"")
+    confidence_middle_l2 = Param.UInt64(12,"")
+    launch_middle_conf = Param.UInt64(8,"")
+
+    # LIMITS
+    max_history_ip = Param.UInt64(8,"")
+    mshr_limit = Param.UInt64(70,"")
+
+    # CONSTANT PARAMETERS
+    berti_r = Param.UInt64(0x0,"")
+    berti_l1 = Param.UInt64(0x1,"")
+    berti_l2 = Param.UInt64(0x2,"")
+    berti_l2r = Param.UInt64(0x3,"")
+
+    page_shift = Param.UInt64(12, "Number of bits to mask to get a page number")
+    latency_table_size = Param.UInt64(8192, "Number of MSHRs in L0 + SQ Size + LQ Size + Prefetch Queue Size")
+    l0_sets = Param.UInt64(64, "Number of sets in the L0")
+    l0_ways = Param.UInt64(8, "Number of ways in the L0")
 
 class Prefetcher(RubyPrefetcher):
     """DEPRECATED"""
