@@ -480,7 +480,7 @@ void Berti::add(uint64_t tag, int64_t delta)
     delta_t new_delta;
     new_delta.delta = delta;
     new_delta.conf = rp_instance.getConfidenceInit();
-    new_delta.rpl = rp_instance.getBertiR();
+    new_delta.rpl = rp_instance.getBertiL2r();
     auto it = std::find_if(std::begin(entry->deltas), std::end(entry->deltas), [](const auto i){
       return (i.delta == 0);
     });
@@ -553,6 +553,7 @@ void Berti::add(uint64_t tag, int64_t delta)
   {
     entry->deltas.front().delta = delta;
     entry->deltas.front().conf = rp_instance.getConfidenceInit();
+    entry->deltas.front().rpl = rp_instance.getBertiL2r();
   }
 }
 
@@ -816,7 +817,7 @@ RubyPrefetcher::RubyPrefetcher(const Params &p)
   latencyt = new LatencyTable(p.latency_table_size,*this);
   scache = new ShadowCache(p.l0_sets, p.l0_ways,*this);
   historyt = new HistoryTable(p.history_table_sets,p.history_table_ways,*this);
-  berti = new Berti(p.berti_table_size,*this);
+  berti = new Berti(p.berti_table_delta_size,*this);
 
 }
 
@@ -905,7 +906,6 @@ void RubyPrefetcher::prefetcher_cache_operate(Addr addr, Addr ip, bool cache_hit
     if (fill_this_level) rubyPrefetcherStats.pf_to_l1++;
     else rubyPrefetcherStats.pf_to_l2++;
 
-    if (!cache_hit) {
       DPRINTF(RubyPrefetcher, "Enqueue PF %#x\n", p_addr);
       m_controller->enqueuePrefetch(p_addr, type);
       ++rubyPrefetcherStats.average_issued;
@@ -922,7 +922,6 @@ void RubyPrefetcher::prefetcher_cache_operate(Addr addr, Addr ip, bool cache_hit
 	latencyt->add(p_b_addr, ip_hash, true, m_controller->curCycle());
 	}
       }
-    }
   }
 
   return;
