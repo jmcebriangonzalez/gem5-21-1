@@ -47,19 +47,45 @@ class RubyPrefetcher(SimObject):
     cxx_class = 'gem5::ruby::RubyPrefetcher'
     cxx_header = "mem/ruby/structures/RubyPrefetcher.hh"
 
-    num_streams = Param.UInt32(4,
-        "Number of prefetch streams to be allocated")
-    unit_filter  = Param.UInt32(8,
-        "Number of entries in the unit filter array")
-    nonunit_filter = Param.UInt32(8,
-        "Number of entries in the non-unit filter array")
-    train_misses = Param.UInt32(4, "")
-    num_startup_pfs = Param.UInt32(1, "")
-    cross_page = Param.Bool(False, """True if prefetched address can be on a
-            page different from the observed address""")
-    page_shift = Param.UInt32(12,
-        "Number of bits to mask to get a page number")
+    log_num_sets_in_recent_access_tag_array_l1 = Param.UInt64(0, "")
+    num_ways_in_recent_access_tag_array_l1 = Param.UInt64(40, "")
 
+    ip_table_tag_mask = Param.UInt64(0x3fff, "Prefetch degree 4")
+    log_num_sets_in_ip_table_l1 = Param.UInt64(7, "")
+
+    num_ways_in_ip_table_l1 = Param.UInt64(15, "")
+    ip_delta_table_tag_mask = Param.UInt64(0xffff, "Prefetch degree 4")
+    log_num_sets_in_ip_delta_table_l1 = Param.UInt64(8, "")
+    num_ways_in_ip_delta_table_l1 = Param.UInt64(8, "")
+
+    saturating_counter_max_l1 = Param.UInt64(3, "")
+    base_prefetch_degree_l1 = Param.UInt64(4, "")
+    num_entries_in_nl_buffer_l1 = Param.UInt64(64, "")
+    nl_threshold_numer_l1 = Param.UInt64(1, "")
+    nl_threshold_denom_l1 = Param.UInt64(4, "")
+
+    pointer_last = Param.Bool(True, "")
+    pointer_non_last = Param.Bool(False, "")
+    stride_conf_max = Param.UInt64(3, "")
+    stride_conf_threshold = Param.UInt64(3, "")
+
+    partial_ip_mask = Param.UInt64(0x7f, "")
+
+    num_strides_in_long_hist_ip_table = Param.UInt64(20, "")
+    long_hist_ip_table_tag_mask = Param.UInt64(0x1fffff, "")
+    num_entries_in_long_hist_ip_table = Param.UInt64(32, "")
+    long_hist_match_length = Param.UInt64(1, "")
+
+    num_ip_table_l1_entries = Param.UInt64(1024, "ip table entries")
+    num_ghb_entries = Param.UInt64(16, "entries in the ghb")
+    num_ip_index_bits = Param.UInt64(10, "bits to index into the ip table")
+    num_ip_tag_bits = Param.UInt64(6, "tag bits per ip table entry")
+    s_type = Param.UInt64(1, "stream")
+    cs_type = Param.UInt64(2, "constant stride")
+    cplx_type = Param.UInt64(3, "complex stride")
+    nl_type = Param.UInt64(4, "next line")
+
+    sys = Param.System(Parent.any, "System this prefetcher belongs to")
 class Prefetcher(RubyPrefetcher):
     """DEPRECATED"""
     pass

@@ -112,15 +112,8 @@ def create_system(options, full_system, system, dma_ports, bootmem,
 
             clk_domain = cpus[i].clk_domain
 
-            # Ruby prefetcher
-            prefetcher = RubyPrefetcher(
-                num_streams=16,
-                unit_filter = 256,
-                nonunit_filter = 256,
-                train_misses = 5,
-                num_startup_pfs = 4,
-                cross_page = True
-            )
+            #IPCP Prefetcher
+            prefetcher = RubyPrefetcher()
 
             l0_cntrl = L0Cache_Controller(
                    version = i * num_cpus_per_cluster + j,
